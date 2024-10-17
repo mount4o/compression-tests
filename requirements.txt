@@ -1,0 +1,5 @@
+streamlit==1.25.0  # Adjust version based on your preference
+Pillow==9.2.0      # For image handling (PIL)
+brotli==1.0.9      # For Brotli compression
+lz4==4.0.4         # For LZ4 compression
+zlib               # For DEFLATE compression (part of Python standard library)
