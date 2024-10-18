@@ -5,11 +5,51 @@ import lz4.frame
 import zlib
 import random
 import math
+import bz2
+import zstandard as zstd
+import lzma
 from PIL import Image
 import io
 from collections import Counter
 
 # Compression functions
+def compress_with_rle(data: bytes) -> bytes:
+    """Compress data using Run-Length Encoding (RLE)."""
+    if not data:
+        return b""
+
+    compressed = bytearray()
+    previous_byte = data[0]
+    count = 1
+
+    for current_byte in data[1:]:
+        if current_byte == previous_byte and count < 255:  # Limit run length to 255 to fit in a byte
+            count += 1
+        else:
+            compressed.append(previous_byte)
+            compressed.append(count)
+            previous_byte = current_byte
+            count = 1
+
+    # Append the last byte and its count
+    compressed.append(previous_byte)
+    compressed.append(count)
+
+    return bytes(compressed)
+
+def compress_with_bzip2(data: bytes) -> bytes:
+    """Compress data using Bzip2."""
+    return bz2.compress(data)
+
+def compress_with_zstd(data: bytes) -> bytes:
+    """Compress data using Zstandard."""
+    cctx = zstd.ZstdCompressor()
+    return cctx.compress(data)
+
+def compress_with_lzma(data: bytes) -> bytes:
+    """Compress data using LZMA."""
+    return lzma.compress(data)
+
 def compress_with_brotli(data: bytes) -> bytes:
     return brotli.compress(data)
 
@@ -72,7 +112,6 @@ def simulate_transmission(payload: bytes, compressed_payload: bytes):
     else:
         st.write("Compression did not reduce the size.")
 
-# Streamlit App
 def main():
     st.title("Payload Compression Simulation")
 
@@ -91,16 +130,18 @@ def main():
             payload = read_file(file)
 
     elif payload_type == "Image":
-        # Supported raw image formats
         image_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg", "dng", "raw", "nef", "cr2", "arw"])
-
         if image_file:
             payload = read_file(image_file)
 
-            compressed_payload = compress_image_lossless(payload)
-            st.write("Lossless compression applied to image.")
+            # RAW images handling
+            if image_file.type in ['image/dng', 'image/x-adobe-dng', 'image/raw', 'image/x-raw', 'image/nef', 'image/x-canon-cr2', 'image/arw']:
+                st.write("RAW image detected, processing as binary data.")
+                compressed_payload = payload  # Can apply general compression later
+            else:
+                compressed_payload = compress_image_lossless(payload)
+                st.write("Lossless compression applied to image.")
 
-            # Simulate transmission and compare sizes
             simulate_transmission(payload, compressed_payload)
             return
 
@@ -111,7 +152,7 @@ def main():
 
     # Compression Algorithm selection
     if payload:
-        compression_method = st.selectbox("Choose a compression method", ['brotli', 'gzip', 'lz4', 'deflate'])
+        compression_method = st.selectbox("Choose a compression method", ['brotli', 'gzip', 'lz4', 'deflate', 'rle', 'bzip2', 'zstd', 'lzma'])
 
         # Calculate entropy of original payload
         entropy = calculate_entropy(payload)
@@ -126,6 +167,14 @@ def main():
             compressed_payload = compress_with_lz4(payload)
         elif compression_method == "deflate":
             compressed_payload = compress_with_deflate(payload)
+        elif compression_method == "rle":
+            compressed_payload = compress_with_rle(payload)
+        elif compression_method == "bzip2":
+            compressed_payload = compress_with_bzip2(payload)
+        elif compression_method == "zstd":
+            compressed_payload = compress_with_zstd(payload)
+        elif compression_method == "lzma":
+            compressed_payload = compress_with_lzma(payload)
 
         # Simulate transmission
         simulate_transmission(payload, compressed_payload)
